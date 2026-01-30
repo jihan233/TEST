@@ -1,0 +1,68 @@
+# --- 地区与语言 ---
+d-i debian-installer/locale string en_US
+d-i console-setup/ask_detect boolean false
+d-i keyboard-configuration/xkb-keymap select us
+
+# --- 网络设置 (静态 IP) ---
+d-i netcfg/disable_autoconfig boolean true
+d-i netcfg/use_autoconfig boolean false
+d-i netcfg/dhcp_failed note
+d-i netcfg/dhcp_options select Configure network manually
+# 你的网络参数
+d-i netcfg/get_ipaddress string 160.251.178.198
+d-i netcfg/get_netmask string 255.255.254.0
+d-i netcfg/get_gateway string 160.251.178.1
+d-i netcfg/get_nameservers string 1.1.1.1 8.8.8.8
+d-i netcfg/confirm_static boolean true
+d-i netcfg/get_hostname string debian-server
+d-i netcfg/get_domain string local
+
+# --- 镜像源 ---
+d-i mirror/country string manual
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
+d-i mirror/http/proxy string
+
+# --- 用户设置 ---
+# Root 仍需设置一个本地密码(用于紧急控制台登录)，但 SSH 将禁止使用此密码
+d-i passwd/root-login boolean true
+d-i passwd/root-password password your_password
+d-i passwd/root-password-again password your_password
+
+# 必须创建的普通用户 (安装完可忽略)
+d-i passwd/user-fullname string debian
+d-i passwd/username string debian
+d-i passwd/user-password password debian
+d-i passwd/user-password-again password debian
+
+# --- 时区 ---
+d-i clock-setup/utc boolean true
+d-i time/zone string Asia/Shanghai
+
+# --- 分区 (自动全盘) ---
+d-i partman-auto/method string regular
+d-i partman-ltr/confirm boolean true
+d-i partman/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+
+# --- 软件选择 (最小化 + SSH) ---
+tasksel tasksel/first multiselect standard, ssh-server
+
+# --- 【核心部分】后期脚本：注入密钥 & 修改 SSH配置 ---
+# 1. 创建 .ssh 目录
+# 2. 写入你的公钥
+# 3. 设置正确的权限 (700/600)
+# 4. 修改 sshd_config: PermitRootLogin 改为 prohibit-password (仅允许密钥)
+# 5. 修改 sshd_config: PasswordAuthentication 改为 no (彻底关闭密码登录)
+d-i preseed/late_command string \
+    mkdir -p /target/root/.ssh; \
+    echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCbxk/ROGvlpKHi5WjyJjnxEhLjcBDEZKBTMggBBuvYoyHivJ2M1RghJ47BqV1C37hlt5tmlloSlbeNPMnoZKlToWcSyt40f8+MJviY907y9oYf8FdeNPXwRR/gyhRWqhKZDsQN/Mqkf70Csw5M6P+jKYE35MqAs4RrNzIHFSljFoYAwYieyxfgSdtrh+pi4XRZRA2uooCu4+M697lk93dAWl0OUP6Tzm9FfCWEaXaDNlMalxCngbQDFLezN28qro+xYBj3TvMveMuVQ/rebxwYAkUnSO+50WmS+Jm7VOnD505ByX/960mINMga+doCigf+3enHNYQjAl/dj0pg1OZN rsa-key-20260116" > /target/root/.ssh/authorized_keys; \
+    chmod 700 /target/root/.ssh; \
+    chmod 600 /target/root/.ssh/authorized_keys; \
+    in-target sed -i 's/#PermitRootLogin.*/PermitRootLogin prohibit-password/g' /etc/ssh/sshd_config; \
+    in-target sed -i 's/#PasswordAuthentication.*/PasswordAuthentication no/g' /etc/ssh/sshd_config
+
+# --- 结束 ---
+d-i finish-install/reboot_in_progress note
